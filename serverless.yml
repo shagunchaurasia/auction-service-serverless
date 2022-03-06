@@ -1,7 +1,7 @@
 service: auction-service
 
 plugins:
-#   - serverless-bundle
+  #   - serverless-bundle
   - serverless-pseudo-parameters
 
 package:
@@ -19,21 +19,34 @@ provider:
   stage: ${opt:stage, 'dev'}
   iamRoleStatements:
     - ${file(iam/AuctionsTableIAM.yml):AuctionsTableIAM}
-
+  environment:
+    AUCTIONS_TABLE_NAME: ${self:custom.AuctionsTable.name}
 
 layers:
   AuctionUuid:
     name: AuctionUuid
     path: layers/auction-uuid
     description: uuid layer to generate unique id
-    compatibleRuntimes: [nodejs14.x,nodejs12.x]
+    compatibleRuntimes: [nodejs14.x, nodejs12.x]
     retain: false
+  AuctionHttpErrors:
+    name: AuctionHttpErrors
+    path: layers/http-errors
+    description: Plugin to prettify http errors
+    compatibleRuntimes: [nodejs14.x, nodejs12.x]
+    retain: false
+  AuctionMiddy:
+    name: AuctionMiddy
+    path: layers/middy
+    description: Middy plugin to apply middlewares
+    compatibleRuntimes: [nodejs14.x, nodejs12.x]
+    retain: false
+  
 
 resources:
   Resources:
     AuctionsTable: ${file(resources/AuctionsTable.yml):AuctionsTable}
 
-  
 functions:
   hello:
     handler: hello.handler
@@ -45,16 +58,26 @@ functions:
   createAuction:
     handler: createAuction.handler
     layers:
-      - {Ref : AuctionUuidLambdaLayer}
+      - { Ref: AuctionUuidLambdaLayer }
+      - { Ref: AuctionMiddyLambdaLayer }
+      - { Ref: AuctionHttpErrorsLambdaLayer }
     events:
       - http:
           method: POST
           path: /auction
 
-
-
+  getAuctions:
+    handler: getAuctions.handler
+    layers:
+      - { Ref: AuctionUuidLambdaLayer }
+      - { Ref: AuctionMiddyLambdaLayer }
+      - { Ref: AuctionHttpErrorsLambdaLayer }
+    events:
+      - http:
+          method: GET
+          path: /auctions
 
 custom:
   AuctionsTable:
     name: !Ref AuctionsTable
-    arn:  !GetAtt AuctionsTable.Arn
+    arn: !GetAtt AuctionsTable.Arn
